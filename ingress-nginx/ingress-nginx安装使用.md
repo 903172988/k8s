@@ -157,7 +157,7 @@ kubectl apply -f ingress-demo.yaml
 
 ![image-20210517201326719](ingress-nginx安装使用.assets/image-20210517201326719.png)
 
-![image-20210517201400956](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517201400956.png)
+![image-20210517201400956](ingress-nginx安装使用.assets/image-20210517201400956.png)
 
 说明ingress-nginx是正常的
 
