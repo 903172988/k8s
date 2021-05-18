@@ -2,7 +2,7 @@
 
 下载地址 https://github.com/docker/compose/releases/
 
-![image-20210518100057385](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518100057385.png)
+![image-20210518100057385](ingress-nginx安装使用.assets/image-20210518100057385.png)
 
 下载二进制文件，上传到服务器，重命名
 
@@ -75,13 +75,13 @@ systemctl enable docker
 
 **harbor下载地址** https://github.com/goharbor/harbor/
 
-![image-20210517203815469](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517203815469.png)
+![image-20210517203815469](ingress-nginx安装使用.assets/image-20210517203815469.png)
 
 
 
 我这里使用的是**v1.6.0**版本，下载离线安装包
 
-![image-20210517204022336](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517204022336.png)
+![image-20210517204022336](ingress-nginx安装使用.assets/image-20210517204022336.png)
 
 解压后，进入解压目录
 
@@ -92,7 +92,7 @@ cd harbor
 
 修改配置文件harbor.cfg，把hostname改为对应机器的ip，我这里是192.168.254.131，其他默认即可
 
-![image-20210517204315501](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517204315501.png)
+![image-20210517204315501](ingress-nginx安装使用.assets/image-20210517204315501.png)
 
 使用的是http,还要加上harbor的地址
 
@@ -117,7 +117,7 @@ ingress-nginx 配置文件地址https://github.com/kubernetes/ingress-nginx/tree
 
 **mandatory.yaml** 是其他yaml文件的合集
 
-![image-20210517200013864](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517200013864.png)
+![image-20210517200013864](ingress-nginx安装使用.assets/image-20210517200013864.png)
 
 以下用到的yaml文件都在这 https://github.com/903172988/k8s/tree/main/ingress-nginx
 
@@ -130,7 +130,7 @@ kubectl get nodes --show-labels
 
 ingress-nginx调度在app=ingress,node1的节点，修改mandatory.yaml
 
-![image-20210517170012110](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517170012110.png)
+![image-20210517170012110](ingress-nginx安装使用.assets/image-20210517170012110.png)
 
 部署ingress-nginx
 
@@ -155,7 +155,7 @@ kubectl apply -f ingress-demo.yaml
 192.168.254.129 tomcat.weng.com
 192.168.254.129 api.weng.com
 
-![image-20210517201326719](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517201326719.png)
+![image-20210517201326719](ingress-nginx安装使用.assets/image-20210517201326719.png)
 
 ![image-20210517201400956](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210517201400956.png)
 
