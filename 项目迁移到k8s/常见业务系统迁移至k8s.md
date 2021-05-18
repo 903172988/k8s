@@ -1,4 +1,4 @@
-# 四种常见业务系统迁移至kubernetes
+# 四种常见业务系统迁移至k8s
 
 ------
 
@@ -37,40 +37,37 @@ public class Main {
 
 将业务系统迁移到Kubernetes主要需要经过两大步： ![输入图片说明](https://images.gitee.com/uploads/images/2020/0908/180908_8482f9cc_1765987.png)
 
-1、搞定基础镜像，Java项目自然需要运行在有JRE环境的容器里，所以直接上docker hub搜索下Java这个关键词使用官方的镜像即可。docker hub上现在的Java镜像是openjdk，所以我们直接拉取openjdk即可：
+1、搞定基础镜像，Java项目自然需要运行在有JRE环境的容器里，所以直接上docker hub搜索下Java这个关键词使用官方的镜像即可。这里使用的是java8，所以我们直接拉取openjdk即可：
 
 ```
-[root@s1 ~]# docker pull openjdk
+docker pull openjdk:8-jre-alpine
 ```
 
 然后将镜像改下tag并推到我们自己的Harbor仓库上：
 
 ```
-[root@s1 ~]# docker tag openjdk:latest 192.168.243.138/kubernetes/openjdk:latest
-[root@s1 ~]# docker push 192.168.243.138/kubernetes/openjdk:latest
+docker tag openjdk:8-jre-alpine 192.168.254.131/k8s/openjdk:8-jre-alpine
+docker push 192.168.254.131/k8s/openjdk:8-jre-alpine
 ```
 
-2、搞定服务运行的相关文件，项目中就只有一个类，我们直接通过maven进行打包即可：
+2、搞定服务运行的相关文件，项目中就只有一个类，进入到项目目录，直接通过maven进行打包即可：
 
 ```
-$ mvn clean package -Dmaven.test.skip=true
+cd /root/k8s-demo/cronjob-demo/
+mvn clean package -Dmaven.test.skip=true
 ```
 
 最终我们得到一个jar包：
 
-```
-[root@s1 ~/cronjob]# ls
-cronjob-demo-1.0-SNAPSHOT.jar
-[root@s1 ~/cronjob]# 
-```
+![image-20210518113252754](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518113252754.png)
 
 3、构建镜像，创建一个Dockerfile，内容如下：
 
 ```
-[root@s1 ~/cronjob]# vim Dockerfile
-FROM 192.168.243.138/kubernetes/openjdk:latest
+# vim Dockerfile
+FROM 192.168.254.131/k8s/openjdk:8-jre-alpine
 
-COPY cronjob-demo-1.0-SNAPSHOT.jar /cronjob-demo.jar
+COPY target/cronjob-demo-1.0-SNAPSHOT.jar /cronjob-demo.jar
 
 ENTRYPOINT ["java", "-cp", "cronjob-demo.jar", "com.example.demo.cronjob.Main"]
 ```
@@ -78,28 +75,28 @@ ENTRYPOINT ["java", "-cp", "cronjob-demo.jar", "com.example.demo.cronjob.Main"]
 build 镜像：
 
 ```
-[root@s1 ~/cronjob]# docker build -t cronjob:v1 .
+docker build -t cronjob:v1 .
 ```
 
 测试能否正常运行：
 
 ```
-[root@s1 ~/cronjob]# docker run -it cronjob:v1
+#docker run -it cronjob:v1
 I will working for 12 seconds!
 All work is done! Bye!
-[root@s1 ~/cronjob]# 
+# 
 ```
 
 把该镜像推到我们自己的Harbor仓库上：
 
 ```
-[root@s1 ~/cronjob]# docker tag cronjob:v1 192.168.243.138/kubernetes/cronjob:v1
-[root@s1 ~/cronjob]# docker push 192.168.243.138/kubernetes/cronjob:v1
+# docker tag cronjob:v1 192.168.254.131/k8s/cronjob:v1
+# docker push 192.168.254.131/k8s/cronjob:v1
 ```
 
 4、确定服务发现的策略，由于这只是一个定时任务，不需要服务发现，所以这一步略过
 
-5、编写k8s配置文件：
+5、编写cronjob.yaml文件，`这里harbor仓库设置为公有的，私有的拉取镜像会提示没权限，需要另外配置`
 
 ```
 apiVersion: batch/v1beta1
@@ -128,33 +125,39 @@ spec:
           restartPolicy: Never
           containers:
           - name: cronjob-demo
-            image: 192.168.243.138/kubernetes/cronjob:v1
+            image: 192.168.254.131/k8s/cronjob:v1
 ```
+
+因为定时任务的特殊性，可能上一个Job没执行完，新的就产生了，可以通过spec.concurrencyPolicy字段来定义处理策略
+
+- concurrencyPolicy=Allow，默认情况，Job可以同时存在
+- concurrencyPolicy=Forbid，不会创建新的Pod，该创建周期被跳过
+- concurrencyPolicy=Replace，新生产的Job会替换旧的没有执行完的Job
 
 将`cronjob`部署到k8s上：
 
 ```
-[root@m1 ~/cronjob]# kubectl apply -f cronjob.yaml 
+# kubectl apply -f cronjob.yaml 
 cronjob.batch/cronjob-demo created
-[root@m1 ~/cronjob]# 
+# 
 ```
 
 部署完成后，查看运行情况：
 
 ```
-[root@m1 ~/cronjob]# kubectl get cronjobs
+# kubectl get cronjobs
 NAME           SCHEDULE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE
 cronjob-demo   */1 * * * *   False     0        <none>          29s
-[root@m1 ~/cronjob]# kubectl get cronjobs
+# kubectl get cronjobs
 NAME           SCHEDULE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE
 cronjob-demo   */1 * * * *   False     1        12s             43s
-[root@m1 ~/cronjob]# kubectl get pods
+# kubectl get pods
 NAME                            READY   STATUS      RESTARTS   AGE
 cronjob-demo-1599535980-brd88   0/1     Completed   0          37s
-[root@m1 ~/cronjob]# kubectl logs cronjob-demo-1599535980-brd88
+# kubectl logs cronjob-demo-1599535980-brd88
 I will working for 15 seconds!
 All work is done! Bye!
-[root@m1 ~/cronjob]# 
+# 
 ```
 
 ------
@@ -191,21 +194,53 @@ server.name=springboot-web-demo
 server.port=8080
 ```
 
-按照之前的步骤，把项目打成jar包：
+按照之前的步骤，进入项目所在目录，把pom.xml文件的java version改为8，开始打包：
+
+![image-20210518160913627](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518160913627.png)
 
 ```
-[root@m1 ~/spring-boot-web]# ls
-springboot-web-demo-1.0-SNAPSHOT.jar
-[root@m1 ~/spring-boot-web]# 
+#mvn clean package -Dmaven.test.skip=true
+# tree
+.
+├── classes
+│   ├── applications.properties
+│   └── com
+│       └── example
+│           └── demo
+│               ├── controller
+│               │   └── DemoController.class
+│               └── ServiceApplication.class
+├── generated-sources
+│   └── annotations
+├── maven-archiver
+│   └── pom.properties
+├── maven-status
+│   └── maven-compiler-plugin
+│       └── compile
+│           └── default-compile
+│               ├── createdFiles.lst
+│               └── inputFiles.lst
+├── springboot-web-demo-1.0-SNAPSHOT.jar
+└── springboot-web-demo-1.0-SNAPSHOT.jar.original
 ```
+
+测试能否正常运行：
+
+```
+[root@harbor target]# java -jar springboot-web-demo-1.0-SNAPSHOT.jar
+```
+
+![image-20210518121134843](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518121134843.png)
+
+可以正常访问
 
 编写Dockerfile：
 
 ```
-[root@m1 ~/spring-boot-web]# vim Dockerfile
-FROM 192.168.243.138/kubernetes/openjdk:latest
+[root@harbor spring-boot-web]# vim Dockerfile
+FROM 192.168.254.131/k8s/openjdk:8-jre-alpine
 
-COPY springboot-web-demo-1.0-SNAPSHOT.jar /springboot-web-demo.jar
+COPY target/springboot-web-demo-1.0-SNAPSHOT.jar /springboot-web-demo.jar
 
 ENTRYPOINT ["java", "-jar", "springboot-web-demo.jar"]
 ```
@@ -213,23 +248,28 @@ ENTRYPOINT ["java", "-jar", "springboot-web-demo.jar"]
 build 镜像：
 
 ```
-[root@s1 ~/spring-boot-web]# docker build -t springboot-web-demo:v1 .
-```
-
-测试能否正常运行：
-
-```
-[root@m1 ~/spring-boot-web]# docker run -it springboot-web-demo:v1
+[root@harbor springboot-web-demo]# docker build -t springboot-web:v1 .
+Sending build context to Docker daemon  16.26MB
+Step 1/3 : FROM 192.168.254.131/k8s/openjdk:8-jre-alpine
+ ---> f7a292bbb70c
+Step 2/3 : COPY target/springboot-web-demo-1.0-SNAPSHOT.jar /springboot-web-demo.jar
+ ---> 35c07f5e5ee9
+Step 3/3 : ENTRYPOINT ["java", "-jar", "springboot-web-demo.jar"]
+ ---> Running in 33aef030fc36
+Removing intermediate container 33aef030fc36
+ ---> 8c03b4902c52
+Successfully built 8c03b4902c52
+Successfully tagged springboot-web:v1
 ```
 
 把该镜像推到我们自己的Harbor仓库上：
 
 ```
-[root@s1 ~/spring-boot-web]# docker tag springboot-web-demo:v1 192.168.243.138/kubernetes/springboot-web-demo:v1
-[root@s1 ~/spring-boot-web]# docker push 192.168.243.138/kubernetes/springboot-web-demo:v1
+[root@harbor springboot-web-demo]# docker tag springboot-web:v1  192.168.254.131/k8s/springboot-web:v1
+[root@harbor springboot-web-demo]# docker push 192.168.254.131/k8s/springboot-web:v1
 ```
 
-由于这是一个需要提供给外部访问的web服务，所以我们需要确定服务发现的策略，这里采用的就是之前我们搭建的ingress-nginx。编写k8s配置文件：
+由于这是一个需要提供给外部访问的`web`服务，所以我们需要确定服务发现的策略，这里采用的就是之前我们搭建的`ingress-nginx`。编写springboot-web.yaml 文件：
 
 ```
 #deploy
@@ -249,7 +289,7 @@ spec:
     spec:
       containers:
       - name: springboot-web-demo
-        image: 192.168.243.138/kubernetes/springboot-web-demo:v1
+        image: 192.168.254.131/k8s/springboot-web:v1
         ports:
         - containerPort: 8080
 ---
@@ -269,22 +309,19 @@ spec:
 
 ---
 #ingress
-apiVersion: networking.k8s.io/v1
+apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
   name: springboot-web-demo
 spec:
   rules:
-  - host: springboot.web.com
+  - host: springboot.weng.com
     http:
       paths:
       - path: /
-        pathType: Prefix
         backend:
-          service: 
-            name: springboot-web-demo
-            port:
-              number:  80
+          serviceName: springboot-web-demo                                       
+          servicePort: 80
 ```
 
 将`springboot-web-demo`部署到k8s上：
@@ -296,22 +333,29 @@ spec:
 查看运行状态：
 
 ```
-[root@m1 ~/spring-boot-web]# kubectl get pods |grep spring
-springboot-web-demo-565c9986dd-fngnm   1/1     Running     0          11s
-[root@m1 ~/spring-boot-web]# kubectl get svc |grep spring
-springboot-web-demo   ClusterIP   10.97.87.31      <none>        80/TCP    3m4s
-[root@m1 ~/spring-boot-web]# kubectl get deployments |grep spring
-springboot-web-demo   1/1     1            1           3m27s
-[root@m1 ~/spring-boot-web]# 
+[root@master ~]# kubectl get pods,svc,deploy
+NAME                                      READY   STATUS    RESTARTS   AGE
+pod/springboot-web-demo-66f89d498-glq2j   1/1     Running   0          4m46s
+
+NAME                          TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+service/kubernetes            ClusterIP   10.96.0.1      <none>        443/TCP   26h
+service/springboot-web-demo   ClusterIP   10.100.68.15   <none>        80/TCP    4m46s
+
+NAME                                  READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/springboot-web-demo   1/1     1            1           4m46s
 ```
 
-为了使得访问`springboot.web.com`域名能够请求到部署了`ingress-nginx`服务的`worker`节点上，需要在本机的`hosts`文件中添加一行配置，这里的ip为部署了`ingress-nginx`节点的ip：
+为了使得访问`springboot.weng.com`域名能够请求到部署了`ingress-nginx`服务的`worker`节点上，需要在本机的`hosts`文件中添加一行配置，这里的ip为部署了`ingress-nginx`节点的ip：
 
 ```
-192.168.243.140 springboot.web.com
+192.168.254.129 springboot.weng.com
 ```
 
-外部访问测试： ![输入图片说明](https://images.gitee.com/uploads/images/2020/0908/180950_e7ce24a1_1765987.png)
+外部访问测试：
+
+![image-20210518153458877](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518153458877.png)
+
+
 
 ------
 
@@ -371,6 +415,12 @@ public class DemoServiceImpl implements DemoService {
 </beans>
 ```
 
+docker运行zookeeper，把下面参数的ip改为自己启动的即可
+
+```
+docker run --name zk01 -p 2181:2181 --restart always -d zookeeper
+```
+
 `dubbo.properties`文件则定义了dubbo相关的一些配置信息：
 
 ```
@@ -389,68 +439,66 @@ dubbo.protocol.port=20880
 了解完项目的基本内容后，我们将其打包一下，这与之前有点不一样。首先进入`dubbo-demo-api`项目，将其安装到本地仓库，因为`dubbo-demo`项目的pom文件依赖了它：
 
 ```
-$ mvn clean install -Dmaven.test.skip=true
+# mvn clean install -Dmaven.test.skip=true
 ```
 
-然后对`dubbo-demo`项目进行打包：
+然后进入`dubbo-demo`项目进行打包，把pom.xml文件的java version改为8,：
+
+![image-20210518160727249](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518160727249.png)
 
 ```
-$ mvn clean package -Dmaven.test.skip=true
+# mvn clean package -Dmaven.test.skip=true
 ```
 
 打包成功会有一个压缩包和一个jar包：
 
 ```
-[root@m1 ~/dubbo-demo]# ls
-dubbo-demo-1.0-SNAPSHOT-assembly.tar.gz  dubbo-demo-1.0-SNAPSHOT.jar
-[root@m1 ~/dubbo-demo]# 
+[root@harbor dubbo-demo]# ls target/
+archive-tmp  bin  classes  conf  dubbo-demo-1.0-SNAPSHOT-assembly.tar.gz  dubbo-demo-1.0-SNAPSHOT.jar  generated-sources  maven-archiver  maven-status
 ```
 
 将压缩包解压：
 
 ```
-[root@m1 ~/dubbo-demo]# tar -zxvf dubbo-demo-1.0-SNAPSHOT-assembly.tar.gz
+[root@harbor target]# tar xvf dubbo-demo-1.0-SNAPSHOT-assembly.tar.gz
 ```
 
 执行启动脚本启动该项目：
 
 ```
-[root@m1 ~/dubbo-demo]# bin/start.sh 
-Starting the demo ...PID: 
-STDOUT: /root/dubbo-demo/logs/stdout.log
-[root@m1 ~/dubbo-demo]# 
+[root@harbor bin]# sh start.sh 
+Starting the demo ...PID: 22396
 ```
 
 查看日志输出：
 
 ```
-[root@m1 ~/dubbo-demo]# cat logs/stdout.log 
-[2020-09-08 16:07:22] Dubbo service server started!
-[root@m1 ~/dubbo-demo]# 
+[root@harbor logs]# cat stdout.log 
+[2021-05-18 16:25:52] Dubbo service server started!
 ```
 
 查看端口是否有正常监听：
 
 ```
-[root@m1 ~/dubbo-demo]# netstat -lntp |grep 20880
-tcp        0      0 0.0.0.0:20880           0.0.0.0:*        LISTEN      99949/java          
-[root@m1 ~/dubbo-demo]# 
+[root@harbor logs]# netstat -lntp |grep 20880
+tcp        0      0 0.0.0.0:20880           0.0.0.0:*               LISTEN      29047/java  
 ```
 
 使用`telnet`测试服务调用是否正常：
 
 ```
-[root@m1 ~/dubbo-demo]# telnet 192.168.243.138 20880
-Trying 192.168.243.138...
-Connected to 192.168.243.138.
+[root@harbor logs]# telnet 192.168.254.131 20880
+Trying 192.168.254.131...
+Connected to 192.168.254.131.
 Escape character is '^]'.
 
+dubbo>
 dubbo>ls
 com.example.demo.api.DemoService
 dubbo>ls com.example.demo.api.DemoService
 sayHello
-dubbo>invoke com.example.demo.api.DemoService.sayHello("Zero")
-"Hello Zero"
+dubbo>invoke com.example.demo.api.DemoService.sayHello("weng")            
+"Hello weng"
 elapsed: 7 ms.
 dubbo>
 ```
@@ -458,76 +506,47 @@ dubbo>
 测试`stop.sh`脚本能否正常停止项目：
 
 ```
-[root@m1 ~/dubbo-demo]# bin/stop.sh 
-Stopping the demo ..................OK!
-PID: 99949
-[root@m1 ~/dubbo-demo]# netstat -lntp |grep 20880
-[root@m1 ~/dubbo-demo]# 
+[root@harbor bin]# sh stop.sh 
+Stopping the demo ....OK!
+PID: 29047
+[root@harbor bin]# 
 ```
 
-测试完后，将压缩包里的内容解压到一个单独的目录下：
+测试完后，将压缩包里的内容解压到一个单独的目录下，要放到docker里的文件：
 
 ```
-[root@m1 ~/dubbo-demo]# mkdir ROOT
-[root@m1 ~/dubbo-demo]# tar -zxvf dubbo-demo-1.0-SNAPSHOT-assembly.tar.gz -C ROOT/
-[root@m1 ~/dubbo-demo]# ls ROOT/
+[root@harbor target]# pwd
+/root/k8s-demo/dubbo-demo/target
+[root@harbor target]# mkdir ROOT
+[root@harbor target]# tar xfv dubbo-demo-1.0-SNAPSHOT-assembly.tar.gz -C ROOT/
+[root@harbor target]# ls ROOT/
 bin  conf  lib
-[root@m1 ~/dubbo-demo]#
+[root@harbor target]#
 ```
 
-由于容器内部环境与操作系统环境是不一样的，所以我们需要修改`start.sh`启动脚本，修改后的内容如下：
+由于容器内部环境与操作系统环境是不一样的，所以我们需要修改`start.sh`启动脚本让它前台运行，修改后的内容如下：
 
 ```
-[root@m1 ~/dubbo-demo]# vim ROOT/bin/start.sh
-#!/bin/bash
+nohup ${JAVA_HOME}/bin/java -Dapp.name=${SERVER_NAME} ${JAVA_OPTS} ${JAVA_DEBUG_OPTS} ${JAVA_JMX_OPTS} -classpath ${CONF_DIR}:${LIB_JARS} com.alibaba.dubbo.container.Main >> ${STDOUT_FILE} 2>&1 &
+修改为
+${JAVA_HOME}/bin/java -Dapp.name=${SERVER_NAME} ${JAVA_OPTS} ${JAVA_DEBUG_OPTS} ${JAVA_JMX_OPTS} -classpath ${CONF_DIR}:${LIB_JARS} com.alibaba.dubbo.container.Main >> ${STDOUT_FILE} 2>&1
 
-cd `dirname $0`
-BIN_DIR=`pwd`
-cd ..
-
-DEPLOY_DIR=`pwd`
-CONF_DIR=${DEPLOY_DIR}/conf
-
-SERVER_NAME=`sed '/dubbo.application.name/!d;s/.*=//' conf/dubbo.properties | tr -d '\r'`
-SERVER_PORT=`sed '/dubbo.protocol.port/!d;s/.*=//' conf/dubbo.properties | tr -d '\r'`
-
-if [ -z "${SERVER_NAME}" ]; then
-    echo "ERROR: can not found 'dubbo.application.name' config in 'dubbo.properties' !"
-	exit 1
+删除以下配置
+PIDS=`ps  --no-heading -C java -f --width 1000 | grep "${CONF_DIR}" |awk '{print $2}'`
+if [ -n "${PIDS}" ]; then
+    echo "ERROR: The ${SERVER_NAME} already started!"
+    echo "PID: ${PIDS}"
+    exit 1
 fi
-
-LOGS_DIR=""
-if [ -n "${LOGS_FILE}" ]; then
-	LOGS_DIR=`dirname ${LOGS_FILE}`
-else
-	LOGS_DIR=${DEPLOY_DIR}/logs
-fi
-if [ ! -d ${LOGS_DIR} ]; then
-	mkdir ${LOGS_DIR}
-fi
-STDOUT_FILE=${LOGS_DIR}/stdout.log
-
-LIB_DIR=${DEPLOY_DIR}/lib
-LIB_JARS=`ls ${LIB_DIR} | grep .jar | awk '{print "'${LIB_DIR}'/"$0}'|tr "\n" ":"`
-
-JAVA_OPTS=" -Djava.awt.headless=true -Djava.net.preferIPv4Stack=true "
-JAVA_DEBUG_OPTS=""
-if [ "$1" = "debug" ]; then
-    JAVA_DEBUG_OPTS=" -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,address=8000,server=y,suspend=n "
-fi
-
-echo -e "Starting the ${SERVER_NAME} ...\c"
-
-${JAVA_HOME}/bin/java -Dapp.name=${SERVER_NAME} ${JAVA_OPTS} ${JAVA_DEBUG_OPTS} ${JAVA_JMX_OPTS} -classpath ${CONF_DIR}:${LIB_JARS} com.alibaba.dubbo.container.Main
 ```
 
 然后编写Dockerfile：
 
 ```
-[root@m1 ~/dubbo-demo]# vim Dockerfile
-FROM 192.168.243.138/kubernetes/openjdk:latest
+[root@harbor dubbo-demo]# cat Dockerfile 
+FROM 192.168.254.131/k8s/openjdk:8-jre-alpine 
 
-COPY ROOT /ROOT
+COPY target/ROOT /ROOT
 
 ENTRYPOINT ["sh", "/ROOT/bin/start.sh"]
 ```
@@ -535,28 +554,41 @@ ENTRYPOINT ["sh", "/ROOT/bin/start.sh"]
 build 镜像：
 
 ```
-[root@m1 ~/dubbo-demo]# docker build -t dubbo-demo:v1 .
+[root@harbor dubbo-demo]# docker build -t dubbo:v1 .
 ```
 
 测试能否正常运行：
 
 ```
-[root@m1 ~/dubbo-demo]# docker run -it dubbo-demo:v1
-[2020-09-08 08:12:24] Dubbo service server started!
+[root@harbor dubbo-demo]# docker run -it dubbo:v1
+Starting the demo ...
 ```
 
 把该镜像推到我们自己的Harbor仓库上：
 
 ```
-[root@m1 ~/dubbo-demo]# docker tag dubbo-demo:v1 192.168.243.138/kubernetes/dubbo-demo:v1
-[root@m1 ~/dubbo-demo]# docker push 192.168.243.138/kubernetes/dubbo-demo:v1
+[root@harbor dubbo-demo]# docker tag  dubbo:v1 192.168.254.131/k8s/dubbo:v1
+[root@harbor dubbo-demo]# docker push 192.168.254.131/k8s/dubbo:v1
 ```
 
-确定服务发现的策略，dubbo的服务发现策略其实是不太好选择的，因为不管哪种策略都不是那么的合适，所以没有一个通用的策略，需要视具体情况而定。在这里我们选择了`hostNetwork`这种模式，将dubbo服务的通过宿主机暴露出来。
+确定服务发现的策略，这里使用第二种
 
-`hostNetwork`模式也有一个问题，就是端口是监听在宿主机上的，万一其他dubbo服务也调度到了这台主机上，端口也是一样的话，就会发生端口冲突的问题。所以选择`hostNetwork`模式就必须保证每个dubbo服务的端口都不一样，由于要确保每个服务的端口都不一样，就得考虑有一个统一的地方管理好这些服务的端口。
+1、provider运行在容器里，有容器的ip，会注册到zookeeper，集群内的服务可以访问得到这个pod的ip，集群外的不可以。解决，容器启动的时候加一个环境变量指定宿主机所在的真实ip，把当前宿主机的ip写在一个文件里,/usr/env/{192.168.254.13x},把这个文件挂在到容器里面，通过文件可以渠道宿主机ip;
 
-编写k8s配置文件：
+![image-20210518210013773](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518210013773.png)
+
+2、使用`hostNetwork`模式，宿主机的ip会注册到zookeeper，不存在上面的问题。20880端口监听在这台主机上，如果其他dubbo服务也调度到了这台主机上，端口也是一样的话，就会发生端口冲突的问题。所以选择`hostNetwork`模式就必须保证每个dubbo服务的端口都不一样，由于要确保每个服务的端口都不一样，就得考虑有一个统一的地方管理好这些服务的端口。配置一个环境变量，dubbo-port:20881，服务启动的时候端口变成20881，写脚本。![image-20210518211600647](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518211600647.png)
+
+在start.sh的加上以下配置
+
+```
+if [ ! -z "${DUBBO_PORT}"];then
+    sed -i "s/dubbo.protocol.port=${SERVER_PORT}/dubbo.protocol.port=${DUBBO_PORT}/g" conf/dubbo.properties
+    SERVER_PORT=${DUBBO_PORT}
+fi
+```
+
+编写dubbo.yaml配置文件：
 
 ```
 #deploy
@@ -577,7 +609,7 @@ spec:
       hostNetwork: true
       affinity:
         podAntiAffinity:
-          # 让多个实例不调度在同一个节点上，避免端口冲突
+          # 让dubbo在多个实例情况下不调度在同一个节点上，避免端口冲突
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchExpressions:
@@ -588,9 +620,12 @@ spec:
             topologyKey: "kubernetes.io/hostname"
       containers:
       - name: dubbo-demo
-        image: 192.168.243.138/kubernetes/dubbo-demo:v1
+        image: 192.168.254.131/k8s/dubbo:v1
         ports:
-        - containerPort: 20880
+        - containerPort: 20881
+        env:
+        - name: DUBBO_PORT
+          value: "20881"    
 ```
 
 将`dubbo-demo`部署到k8s上：
@@ -602,33 +637,36 @@ spec:
 查看运行状态：
 
 ```
-[root@m1 ~/dubbo-demo]# kubectl get pods -o wide |grep dubbo
-dubbo-demo-5b4c68f7b7-qvz88            1/1     Running            0          63s     192.168.243.139   s1     <none>           <none>
-[root@m1 ~/dubbo-demo]# kubectl get deployments |grep dubbo
-dubbo-demo            1/1     1            1           25s
-[root@m1 ~/dubbo-demo]# 
+[root@master ~]# kubectl apply -f dubbo.yaml 
+deployment.apps/dubbo-demo created
+[root@master ~]# kubectl get pods -o wide
+NAME                                  READY   STATUS    RESTARTS   AGE     IP                NODE    NOMINATED NODE   READINESS GATES
+dubbo-demo-644c64568d-fc8hs           1/1     Running   0          3s      192.168.254.130   node2   <none>           <none>
+springboot-web-demo-66f89d498-glq2j   1/1     Running   0          7h47m   10.244.2.25       node2   <none>           <none>
 ```
 
-可以看到该Pod被调度到了s1节点上，到s1节点上看看端口是否有正常监听：
+可以看到该Pod被调度到了node2节点上，到node2节点上看看端口是否有正常监听：
 
 ```
-[root@s1 ~]# netstat -lntp |grep 20880
-tcp        0      0 0.0.0.0:20880           0.0.0.0:*         LISTEN      4573/java           
-[root@s1 ~]# 
+[root@node2 ~]# netstat -tnlp|grep 20881
+tcp        0      0 0.0.0.0:20881           0.0.0.0:*               LISTEN      98231/java
 ```
 
 使用`telnet`测试服务调用是否正常：
 
 ```
-[root@s1 ~]# telnet 127.0.0.1 20880
-Trying 127.0.0.1...
-Connected to 127.0.0.1.
+[root@harbor dubbo-demo]# telnet 192.168.254.130 20881
+Trying 192.168.254.130...
+Connected to 192.168.254.130.
 Escape character is '^]'.
-
-dubbo>invoke com.example.demo.api.DemoService.sayHello("Zero")
-"Hello Zero"
+ls
+com.example.demo.api.DemoService
+dubbo>ls com.example.demo.api.DemoService
+sayHello
+dubbo>invoke com.example.demo.api.DemoService.sayHello("aa")
+"Hello aa"
 elapsed: 4 ms.
-dubbo>
+dubbo>exit
 ```
 
 ------
