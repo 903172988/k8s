@@ -1,0 +1,27 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: cronjob-demo
+spec:
+  # 定义cron表达式，与linux里的表达式是一样的
+  schedule: "*/1 * * * *"
+  # 保留执行成功的3个历史job
+  successfulJobsHistoryLimit: 3
+  # 是否挂起，如果设置为true则任务不会真正被执行
+  suspend: false
+  # 并行的策略
+  concurrencyPolicy: Forbid
+  # 保留执行失败的1个历史job
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: cronjob-demo
+        spec:
+          # 重启策略
+          restartPolicy: Never
+          containers:
+          - name: cronjob-demo
+            image: 192.168.254.131/k8s/cronjob:v1
