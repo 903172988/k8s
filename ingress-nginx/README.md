@@ -153,6 +153,7 @@ kubectl apply -f ingress-demo.yaml
 /etc/hosts添加域名解析
 
 192.168.254.129 tomcat.weng.com
+
 192.168.254.129 api.weng.com
 
 ![image-20210517201326719](ingress-nginx安装使用.assets/image-20210517201326719.png)
