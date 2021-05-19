@@ -59,7 +59,7 @@ mvn clean package -Dmaven.test.skip=true
 
 最终我们得到一个jar包：
 
-![image-20210518113252754](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518113252754.png)
+![image-20210518113252754](README.assets/image-20210518113252754.png)
 
 3、构建镜像，创建一个Dockerfile，内容如下：
 
@@ -196,7 +196,7 @@ server.port=8080
 
 按照之前的步骤，进入项目所在目录，把pom.xml文件的java version改为8，开始打包：
 
-![image-20210518160913627](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518160913627.png)
+![image-20210518160913627](README.assets/image-20210518160913627.png)
 
 ```
 #mvn clean package -Dmaven.test.skip=true
@@ -230,7 +230,7 @@ server.port=8080
 [root@harbor target]# java -jar springboot-web-demo-1.0-SNAPSHOT.jar
 ```
 
-![image-20210518121134843](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518121134843.png)
+![image-20210518121134843](README.assets/image-20210518121134843.png)
 
 可以正常访问
 
@@ -353,7 +353,7 @@ deployment.apps/springboot-web-demo   1/1     1            1           4m46s
 
 外部访问测试：
 
-![image-20210518153458877](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518153458877.png)
+![image-20210518153458877](README.assets/image-20210518153458877.png)
 
 
 
@@ -444,7 +444,7 @@ dubbo.protocol.port=20880
 
 然后进入`dubbo-demo`项目进行打包，把pom.xml文件的java version改为8,：
 
-![image-20210518160727249](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518160727249.png)
+![image-20210518160727249](README.assets/image-20210518160727249.png)
 
 ```
 # mvn clean package -Dmaven.test.skip=true
@@ -575,9 +575,9 @@ Starting the demo ...
 
 1、provider运行在容器里，有容器的ip，会注册到zookeeper，集群内的服务可以访问得到这个pod的ip，集群外的不可以。解决，容器启动的时候加一个环境变量指定宿主机所在的真实ip，把当前宿主机的ip写在一个文件里,/usr/env/{192.168.254.13x},把这个文件挂在到容器里面，通过文件可以渠道宿主机ip;
 
-![image-20210518210013773](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518210013773.png)
+![image-20210518210013773](README.assets/image-20210518210013773.png)
 
-2、使用`hostNetwork`模式，宿主机的ip会注册到zookeeper，不存在上面的问题。20880端口监听在这台主机上，如果其他dubbo服务也调度到了这台主机上，端口也是一样的话，就会发生端口冲突的问题。所以选择`hostNetwork`模式就必须保证每个dubbo服务的端口都不一样，由于要确保每个服务的端口都不一样，就得考虑有一个统一的地方管理好这些服务的端口。配置一个环境变量，dubbo-port:20881，服务启动的时候端口变成20881，写脚本。![image-20210518211600647](C:\Users\90317\AppData\Roaming\Typora\typora-user-images\image-20210518211600647.png)
+2、使用`hostNetwork`模式，宿主机的ip会注册到zookeeper，不存在上面的问题。20880端口监听在这台主机上，如果其他dubbo服务也调度到了这台主机上，端口也是一样的话，就会发生端口冲突的问题。所以选择`hostNetwork`模式就必须保证每个dubbo服务的端口都不一样，由于要确保每个服务的端口都不一样，就得考虑有一个统一的地方管理好这些服务的端口。配置一个环境变量，dubbo-port:20881，服务启动的时候端口变成20881，写脚本。![image-20210518211600647](README.assets/image-20210518211600647.png)
 
 在start.sh的加上以下配置
 
