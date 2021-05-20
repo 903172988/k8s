@@ -111,11 +111,11 @@ $ systemctl enable kubelet
 
 ## 4. 部署Kubernetes Master
 
-在192.168.31.61（Master）执行。
+在（Master）执行。
 
 ```
 $ kubeadm init \
-  --apiserver-advertise-address=192.168.44.146 \
+  --apiserver-advertise-address=192.168.254.128 \
   --image-repository registry.aliyuncs.com/google_containers \
   --kubernetes-version v1.18.0 \
   --service-cidr=10.96.0.0/12 \
@@ -135,12 +135,12 @@ $ kubectl get nodes
 
 ## 5. 加入Kubernetes Node
 
-在192.168.1.12/13（Node）执行。
+在192.168.254.128（Node）执行。
 
 向集群添加新节点，执行在kubeadm init输出的kubeadm join命令：
 
 ```
-$ kubeadm join 192.168.1.11:6443 --token esce21.q6hetwm8si29qxwn \
+$ kubeadm join 192.168.254.128:6443 --token esce21.q6hetwm8si29qxwn \
     --discovery-token-ca-cert-hash sha256:00603a05805807501d7181c3d60b478788408cfe6cedefedb1f97569708be9c5
 ```
 

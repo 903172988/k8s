@@ -1,8 +1,8 @@
-FROM 192.168.243.138/kubernetes/tomcat:latest
+FROM 192.168.254.131/k8s/tomcat:8.0.51-alpine
 
 # 拷贝到Tomcat的部署目录下
-COPY ROOT /usr/local/tomcat/webapps/ROOT
+COPY target/ROOT /usr/local/tomcat/webapps/ROOT
 # 拷贝自定义启动脚本
-COPY dockerfiles/my_start.sh /usr/local/tomcat/bin/my_start.sh
+COPY start.sh /usr/local/tomcat/bin/start.sh
 
-ENTRYPOINT ["sh", "/usr/local/tomcat/bin/my_start.sh"]
+ENTRYPOINT ["sh", "/usr/local/tomcat/bin/start.sh"]
