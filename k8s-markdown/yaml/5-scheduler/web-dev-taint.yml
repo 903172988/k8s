@@ -1,0 +1,26 @@
+#deploy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-demo-taint
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: web-demo-taint
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: web-demo-taint
+    spec:
+      containers:
+      - name: web-demo-taint
+        image: 192.168.254.131/k8s/web:v1
+        ports:
+        - containerPort: 8080
+      tolerations:
+      - key: "gpu"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"

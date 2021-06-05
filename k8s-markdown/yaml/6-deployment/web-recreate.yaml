@@ -1,0 +1,84 @@
+#deploy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-recreate
+  namespace: dev
+spec:
+  strategy:
+    type: Recreate 
+  selector:
+    matchLabels:
+      app: web-recreate
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: web-recreate
+    spec:
+      containers:
+      - name: web-recreate
+        image: 192.168.254.131/k8s/web:v1
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+            #等待容器启动10秒后才执行上面的命令
+          initialDelaySeconds: 20
+          #每隔10秒检查一次
+          periodSeconds: 10
+          #健康检查的命令连续执行失败2次认为健康检查失败
+          failureThreshold: 2
+          #成功一次就认为健康检查成功
+          successThreshold: 1
+          #执行命令的等待时间，超过5秒也认为检查失败
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+          #访问状态码不是200都认为健康检查失败
+            path: /examples/index.html
+            port: 8080
+            scheme: HTTP
+            #等待容器启动10秒后才执行上面的命令
+          initialDelaySeconds: 20
+          #每隔10秒检查一次
+          periodSeconds: 10
+          #健康检查的命令连续执行失败2次认为健康检查失败
+          failureThreshold: 2
+          #成功一次就认为健康检查成功
+          successThreshold: 1
+          #执行命令的等待时间，超过5秒也认为检查失败
+          timeoutSeconds: 5
+---
+#service
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-recreate
+  namespace: dev
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: web-recreate
+  type: ClusterIP
+
+---
+#ingress
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-recreate
+  namespace: dev
+spec:
+  rules:
+    - host: web-recreate.weng.com
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: web-recreate
+              servicePort: 80
