@@ -1,0 +1,71 @@
+#deploy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-canary-a
+  namespace: canary
+spec:
+  strategy:
+    rollingUpdate:
+    #超出服务实例数的最大百分比，4个实例，每次最多多启动一个实例
+      maxSurge: 25%
+     #4个实例，3个实例必须是可用状态
+      maxUnavailable: 25%
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: web-canary-a
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: web-canary-a
+    spec:
+      containers:
+      - name: web-canary-a
+        image: 192.168.254.131/k8s/web:v1
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+            #等待容器启动10秒后才执行上面的命令
+          initialDelaySeconds: 20
+          #每隔10秒检查一次
+          periodSeconds: 10
+          #健康检查的命令连续执行失败2次认为健康检查失败
+          failureThreshold: 2
+          #成功一次就认为健康检查成功
+          successThreshold: 1
+          #执行命令的等待时间，超过5秒也认为检查失败
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /hello?name=test
+            port: 8080
+            scheme: HTTP
+            #等待容器启动10秒后才执行上面的命令
+          initialDelaySeconds: 20
+          #每隔10秒检查一次
+          periodSeconds: 10
+          #健康检查的命令连续执行失败2次认为健康检查失败
+          failureThreshold: 2
+          #成功一次就认为健康检查成功
+          successThreshold: 1
+          #执行命令的等待时间，超过5秒也认为检查失败
+          timeoutSeconds: 5
+---
+#service
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-canary-a
+  namespace: canary
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: web-canary-a
+  type: ClusterIP

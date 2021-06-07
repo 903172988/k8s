@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-demo
+  namespace: dev
+spec:
+  rules:
+    - host: web-dev.weng.com
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: web-demo
+              servicePort: 80
+  tls:
+    - hosts:
+      - web-dev.weng.com
+      secretName: weng-tls
+          

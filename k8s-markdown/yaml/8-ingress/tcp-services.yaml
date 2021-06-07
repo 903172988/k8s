@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tcp-services
+  namespace: ingress-nginx
+  #把dev/web-demo:80 服务暴露在ingress-nginx 的 30000 端口
+data:
+  "30000": dev/web-demo:80
