@@ -1,0 +1,50 @@
+#deploy
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: springboot-web
+spec:
+# 对应headless-serivce的名字
+  serviceName: springboot-web-svc
+  replicas: 2
+  selector:
+    matchLabels:
+      app: springboot-web
+  template:
+    metadata:
+      labels:
+        app: springboot-web
+    spec:
+      containers:
+      - name: springboot-web
+        image: 192.168.254.131/k8s/springboot-web:v1
+        ports:
+        - containerPort: 8080
+        livenessProbe:
+          tcpSocket:
+            port: 8080
+            #等待容器启动10秒后才执行上面的命令
+          initialDelaySeconds: 20
+          #每隔10秒检查一次
+          periodSeconds: 10
+          #健康检查的命令连续执行失败2次认为健康检查失败
+          failureThreshold: 2
+          #成功一次就认为健康检查成功
+          successThreshold: 1
+          #执行命令的等待时间，超过5秒也认为检查失败
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /hello?name=test
+            port: 8080
+            scheme: HTTP
+            #等待容器启动10秒后才执行上面的命令
+          initialDelaySeconds: 20
+          #每隔10秒检查一次
+          periodSeconds: 10
+          #健康检查的命令连续执行失败2次认为健康检查失败
+          failureThreshold: 2
+          #成功一次就认为健康检查成功
+          successThreshold: 1
+          #执行命令的等待时间，超过5秒也认为检查失败
+          timeoutSeconds: 5

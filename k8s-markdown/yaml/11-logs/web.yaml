@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-demo
+spec:
+  selector:
+    matchLabels:
+      app: web-demo
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: web-demo
+    spec:
+      containers:
+      - name: web-demo
+        image: 192.168.254.131/k8s/web:v1 
+        ports:
+        - containerPort: 8080
+        env:
+    # 1、stdout为约定关键字，表示采集标准输出日志。
+    # 2、配置标准输出日志采集到ES的catalina索引下。
+        - name: aliyun_logs_catalina
+          value: "stdout"
+        # 1、配置采集容器内文件日志，支持通配符。
+        # 2、配置该日志采集到ES的access索引下。
+        - name: aliyun_logs_access
+          value: "/usr/local/tomcat/logs/*"
+        # 容器内文件日志路径需要配置emptyDir。
+        volumeMounts:
+        - name: accesslogs
+          mountPath: /usr/local/tomcat/logs
+      volumes:
+        - name: accesslogs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-demo
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: web-demo
+  type: ClusterIP
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: web-demo
+spec:
+  rules:
+    - host: web.weng.com
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: web-demo
+              servicePort: 80

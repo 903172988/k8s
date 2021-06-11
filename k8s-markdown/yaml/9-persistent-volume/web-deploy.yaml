@@ -1,0 +1,36 @@
+#deploy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-deploy
+  namespace: dev
+spec:
+  strategy:
+    deploy:
+    #超出服务实例数的最大百分比，4个实例，每次最多多启动一个实例
+      maxSurge: 25%
+     #4个实例，3个实例必须是可用状态
+      maxUnavailable: 25%
+    type: deploy
+  selector:
+    matchLabels:
+      app: web-deploy
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: web-deploy
+    spec:
+      containers:
+      - name: web-deploy
+        image: 192.168.254.131/k8s/springboot-web:v1
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+          - name: gluster-volume
+            mountPath: "/weng-data"
+            readOnly: false
+      volumes:
+      - name: gluster-volume
+        persistentVolumeClaim:
+          claimName: glusterfs-pvc

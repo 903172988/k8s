@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: glusterfs-pvc
+spec:
+  accessModes:
+  #只有一个pod可以使用pv，权限是读写
+    - ReadWriteOnce
+  storageClassName: glusterfs-storage-class
+  resources:
+    requests:
+      storage: 1Gi
